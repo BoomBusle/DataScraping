@@ -40,19 +40,51 @@ class PostgresPipeline:
         try:
             self.conn = psycopg2.connect(
                 host='localhost',
+                dbname='postgres',
+                user='postgres',
+                password='admin',
+                port=5432
+            )
+            self.conn.autocommit = True
+            self.cur = self.conn.cursor()
+            
+            self.cur.execute("SELECT 1 FROM pg_database WHERE datname='lab3_db'")
+            if not self.cur.fetchone():
+                self.cur.execute("CREATE DATABASE lab3_db")
+                spider.logger.info("База даних 'lab3_db' створена")
+            
+            self.conn.close()
+            self.conn = psycopg2.connect(
+                host='localhost',
                 dbname='lab3_db',
                 user='postgres',
-                password='admin',  
+                password='admin',
                 port=5432
             )
             self.cur = self.conn.cursor()
-        except psycopg2.OperationalError as e:
+            
+            self.cur.execute('''
+                CREATE TABLE IF NOT EXISTS persons (
+                    id SERIAL PRIMARY KEY,
+                    pib TEXT NOT NULL,
+                    position TEXT NOT NULL,
+                    email TEXT,
+                    phone TEXT,
+                    page_url TEXT NOT NULL,
+                    image_path TEXT
+                )
+            ''')
+            self.conn.commit()
+            
+        except psycopg2.Error as e:
             spider.logger.error(f"PostgreSQL connection error: {e}")
             self.conn = None
             self.cur = None  
-        self.conn.commit()
-              
+        
     def process_item(self, item, spider):
+        if self.cur is None:
+            return item  
+        
         if 'image_url' in item and 'image_path' not in item:
             spider.logger.warning(f"Зображення ще не оброблено для {item.get('ПІБ')}")
             return item  
